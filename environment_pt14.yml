@@ -107,7 +107,7 @@ dependencies:
   - pip:
     - absl-py==0.11.0
     - antlr4-python3-runtime==4.8
-    - apex==0.1
+    - apex
     - astor==0.8.1
     - astunparse==1.6.3
     - backcall==0.1.0
@@ -115,7 +115,6 @@ dependencies:
     - cachetools==4.0.0
     - chardet==3.0.4
     - cloudpickle==1.4.1
-    - cupy==6.4.0
     - cython==0.29.17
     - decorator==4.4.0
     - fastrlock==0.4
@@ -144,13 +143,11 @@ dependencies:
     - keras==2.3.1
     - keras-applications==1.0.8
     - keras-preprocessing==1.1.2
-    - lmdb==0.98
     - markdown==3.1.1
     - mock==4.0.2
     - msgpack==0.6.2
     - msgpack-numpy==0.4.4.3
     - numpy==1.19.5
-    - nvidia-dali==0.15.0
     - oauthlib==3.1.0
     - omegaconf==2.0.6
     - opt-einsum==3.3.0
@@ -165,7 +162,6 @@ dependencies:
     - ptyprocess==0.6.0
     - pyasn1==0.4.8
     - pyasn1-modules==0.2.8
-    - pycocotools==2.0
     - pydload==1.0.9
     - pydot==1.4.1
     - pyee==8.1.0
@@ -193,7 +189,7 @@ dependencies:
     - tensorflow-estimator==2.4.0
     - termcolor==1.1.0
     - torchfile==0.1.0
-    - torchvision==0.5.0a0+681c6c1
+    - torchvision
     - tqdm==4.35.0
     - traitlets==4.3.2
     - typing-extensions==3.7.4.3

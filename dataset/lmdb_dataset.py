@@ -2,7 +2,6 @@ import os
 import sys
 import glob
 import msgpack
-import lmdb
 from io import BytesIO
 import torch
 from PIL import Image
@@ -848,3 +847,65 @@ class K400_2STREAM_LMDB_2CLIP(Kinetics_2STREAM_LMDB_2CLIP):
                  **kwargs):
         super(K400_2STREAM_LMDB_2CLIP, self).__init__(root=root, db_path_flow=db_path_flow, 
             db_path_rgb=db_path_rgb, filename_flow=filename_flow, filename_rgb=filename_rgb, **kwargs)
+
+
+import os
+import random
+import itertools
+import torchvision
+from torchvision.datasets.folder import make_dataset
+from torchvision import transforms as t
+
+def get_samples(root, extensions=(".mp4", ".avi")):
+    instances = []
+    for filename in os.listdir(root):
+        f = os.path.join(root, filename)
+        path = os.path.join(root, f)
+        instances.append(path)
+    return instances
+
+
+class NormalDataset(torch.utils.data.IterableDataset):
+    def __init__(self, root, epoch_size=None, frame_transform=None, video_transform=None, clip_len=32):
+        super(NormalDataset).__init__()
+
+        self.samples = get_samples(root)
+
+        # Allow for temporal jittering
+        if epoch_size is None:
+            epoch_size = len(self.samples)
+        self.epoch_size = epoch_size
+
+        self.clip_len = clip_len
+        self.frame_transform = frame_transform
+        self.video_transform = video_transform
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __iter__(self):
+        for i in range(self.epoch_size):
+            # Get random sample
+            path = random.choice(self.samples)
+            # Get video object
+            vid = torchvision.io.VideoReader(path, "video")
+            metadata = vid.get_metadata()
+            video_frames = []  # video frame buffer
+
+            # Seek and return frames
+            max_seek = metadata["video"]['duration'][0] - (self.clip_len / metadata["video"]['fps'][0])
+            start = random.uniform(0., max_seek)
+            for frame in itertools.islice(vid.seek(start), self.clip_len):
+                video_frames.append(self.frame_transform(frame['data']))
+                current_pts = frame['pts']
+            # Stack it into a tensor
+            video = torch.stack(video_frames, 0)
+            if self.video_transform:
+                video = self.video_transform(video)
+            output = {
+                'path': path,
+                'video': video,
+                'target': target,
+                'start': start,
+                'end': current_pts}
+            yield output

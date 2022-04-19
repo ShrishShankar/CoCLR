@@ -19,6 +19,7 @@ import torch.distributed as dist
 from torch.utils import data 
 from torchvision import transforms
 import torchvision.utils as vutils
+from torch.utils.data import DataLoader
 
 import utils.augmentation as A
 import utils.transforms as T
@@ -32,7 +33,7 @@ batch_denorm, ProgressMeter, neq_load_customized, save_checkpoint, Logger, FastD
 import torch.nn.functional as F 
 import torch.backends.cudnn as cudnn
 from model.pretrain import InfoNCE, UberNCE
-from dataset.lmdb_dataset import *
+from dataset.lmdb_dataset import NormalDataset
 
 
 def parse_args():
@@ -90,6 +91,7 @@ def parse_args():
     parser.add_argument('--moco-t', default=0.07, type=float,
                         help='softmax temperature (default: 0.07)')
     args = parser.parse_args()
+    args.gpu = 0
     return args
 
 
@@ -162,28 +164,28 @@ def main_worker(gpu, ngpus_per_node, args):
 
     args.img_path, args.model_path, args.exp_path = set_path(args)
 
-    if args.distributed:
-        # For multiprocessing distributed, DistributedDataParallel constructor
-        # should always set the single device scope, otherwise,
-        # DistributedDataParallel will use all available devices.
-        if args.gpu is not None:
-            torch.cuda.set_device(args.gpu)
-            model.cuda(args.gpu)
-            model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
-            model_without_ddp = model.module
-        else:
-            model.cuda()
-            model = torch.nn.parallel.DistributedDataParallel(model)
-            model_without_ddp = model.module
-    elif args.gpu is not None:
-        torch.cuda.set_device(args.gpu)
-        model = model.cuda(args.gpu)
-        # comment out the following line for debugging
-        raise NotImplementedError("Only DistributedDataParallel is supported.")
-    else:
-        # AllGather implementation (batch shuffle, queue update, etc.) in
-        # this code only supports DistributedDataParallel.
-        raise NotImplementedError("Only DistributedDataParallel is supported.")
+    # if args.distributed:
+    #     # For multiprocessing distributed, DistributedDataParallel constructor
+    #     # should always set the single device scope, otherwise,
+    #     # DistributedDataParallel will use all available devices.
+    #     if args.gpu is not None:
+    #         torch.cuda.set_device(args.gpu)
+    #         model.cuda(args.gpu)
+    #         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
+    #         model_without_ddp = model.module
+    #     else:
+    #         model.cuda()
+    #         model = torch.nn.parallel.DistributedDataParallel(model)
+    #         model_without_ddp = model.module
+    # elif args.gpu is not None:
+    #     torch.cuda.set_device(args.gpu)
+    #     model = model.cuda(args.gpu)
+    #     # comment out the following line for debugging
+    #     raise NotImplementedError("Only DistributedDataParallel is supported.")
+    # else:
+    #     # AllGather implementation (batch shuffle, queue update, etc.) in
+    #     # this code only supports DistributedDataParallel.
+    #     raise NotImplementedError("Only DistributedDataParallel is supported.")
 
 
     ### optimizer ###
@@ -256,8 +258,8 @@ def main_worker(gpu, ngpus_per_node, args):
         np.random.seed(epoch)
         random.seed(epoch)
         
-        if args.distributed:
-            train_loader.sampler.set_epoch(epoch)
+        # if args.distributed:
+        #     train_loader.sampler.set_epoch(epoch)
         adjust_learning_rate(optimizer, epoch, args)
 
         _, train_acc = train_one_epoch(train_loader, model, criterion, optimizer, transform_train_cuda, epoch, args)
@@ -395,32 +397,26 @@ def get_data(transform, mode, args):
     print('Loading data for "%s" mode' % mode)
 
     if args.dataset == 'ucf101-2clip':
-        dataset = UCF101LMDB_2CLIP(mode=mode, transform=transform, 
-            num_frames=args.seq_len, ds=args.ds, return_label=True)
+        dataset = NormalDataset("/content/faceforensics", epoch_size=None, frame_transform=transform)
     elif args.dataset == 'ucf101-f-2clip':
-        dataset = UCF101Flow_LMDB_2CLIP(mode=mode, transform=transform, 
-            num_frames=args.seq_len, ds=args.ds, return_label=True)
+        dataset = NormalDataset("/content/faceforensics", epoch_size=None, frame_transform=transform)
 
     elif args.dataset == 'k400-2clip': 
-        dataset = K400_LMDB_2CLIP(mode=mode, transform=transform, 
-            num_frames=args.seq_len, ds=args.ds, return_label=True)
+        dataset = NormalDataset("/content/faceforensics", epoch_size=None, frame_transform=transform)
     elif args.dataset == 'k400-f-2clip': 
-        dataset = K400_Flow_LMDB_2CLIP(mode=mode, transform=transform, 
-            num_frames=args.seq_len, ds=args.ds, return_label=True)
+        dataset = NormalDataset("/content/faceforensics", epoch_size=None, frame_transform=transform)
 
     return dataset 
 
 
 def get_dataloader(dataset, mode, args):
     print('Creating data loaders for "%s" mode' % mode)
-    train_sampler = data.distributed.DistributedSampler(dataset, shuffle=True)
+    # train_sampler = data.distributed.DistributedSampler(dataset, shuffle=True)
     if mode == 'train':
-        data_loader = FastDataLoader(
-            dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
-            num_workers=args.workers, pin_memory=True, sampler=train_sampler, drop_last=True)
+        data_loader = DataLoader(dataset, batch_size=32)
     else:
         raise NotImplementedError
-    print('"%s" dataset has size: %d' % (mode, len(dataset)))
+    # print('"%s" dataset has size: %d' % (mode, len(dataset)))
     return data_loader
 
 def set_path(args):
